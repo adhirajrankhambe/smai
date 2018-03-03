@@ -15,13 +15,12 @@ ActiveRecord::Schema.define(version: 20180302164128) do
   create_table "companies", force: :cascade, options: "ENGINE=InnoDB DEFAULT CHARSET=utf8" do |t|
     t.string "symbol"
     t.string "name"
-    t.decimal "market_cap", precision: 15, scale: 4
+    t.decimal "market_cap", precision: 16, scale: 4
     t.integer "ipo_year"
     t.string "sector"
     t.string "industry"
     t.string "summary_quote"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
+    t.index ["symbol"], name: "index_companies_on_symbol", unique: true
   end
 
 end
