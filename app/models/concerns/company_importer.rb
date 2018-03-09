@@ -1,39 +1,38 @@
 require 'open-uri'
 require 'csv'
+require 'benchmark'
 
 module CompanyImporter
+
   COMPANIES_DOWNLOAD_URL = 'https://www.nasdaq.com/screening/companies-by-name.aspx?letter=0&exchange=nyse&render=download'
   CURRENCY_REGEX = /\d*\.?\d{1,4}/
   UNIT_REGEX = /[BM]/
 
-  def download_csv
-    print "Downloading data..."
-    companies_csv = CSV.parse(open(COMPANIES_DOWNLOAD_URL), headers: true, header_converters: :symbol, encoding: 'UTF-8')
-    puts "Download complete"
-    return companies_csv
-  end
+  def import!
+    print_memory_usage do
+      print_time_spent do
+        print "Importing"
+        counter = 0
+        CSV.foreach(open(COMPANIES_DOWNLOAD_URL), headers: true, header_converters: :symbol, encoding: 'UTF-8') do |row|
+          company_data = { symbol: row[:symbol],
+                           name: row[:name],
+                           market_cap: get_market_cap(row[:marketcap]),
+                           ipo_year: row[:ipoyear],
+                           sector: row[:sector],
+                           industry: row[:industry],
+                           summary_quote: row[:summary_quote] }
+          company = create(company_data)
+          if company.persisted?
+            counter += 1
+            print '.'
+          else
+            puts "\n#{company_data[:symbol]} - #{company.errors.full_messages.join(",")}" if company.errors.any?
+          end
+        end
 
-  def import!(companies_csv)
-    print "Importing"
-    counter = 0
-    companies_csv.each do |row|
-      company_data = { symbol: row[:symbol],
-                       name: row[:name],
-                       market_cap: get_market_cap(row[:marketcap]),
-                       ipo_year: row[:ipoyear],
-                       sector: row[:sector],
-                       industry: row[:industry],
-                       summary_quote: row[:summary_quote] }
-      company = create(company_data)
-      if company.persisted?
-        counter += 1
-        print '.'
-      else
-        puts "\n#{company_data[:symbol]} - #{company.errors.full_messages.join(",")}" if company.errors.any?
+        puts "done.\nImported #{counter} companies"
       end
     end
-
-    puts "\nImported #{counter} companies"
   end
 
   private
@@ -49,5 +48,21 @@ module CompanyImporter
       else
         return nil
       end
+    end
+
+    def print_memory_usage
+      memory_before = `ps -o rss= -p #{Process.pid}`.to_i
+      yield
+      memory_after = `ps -o rss= -p #{Process.pid}`.to_i
+
+      puts "Memory used: #{((memory_after - memory_before) / 1024.0).round(2)} MB"
+    end
+
+    def print_time_spent
+      time = Benchmark.realtime do
+        yield
+      end
+
+      puts "Time taken: #{time.round(2)}"
     end
 end
